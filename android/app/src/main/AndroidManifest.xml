@@ -4,7 +4,7 @@
     <application
         android:label="Cüzdanım"
         android:name="${applicationName}"
-        android:icon="@drawable/ic_launcher_legacy">
+        android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
             android:exported="true"
