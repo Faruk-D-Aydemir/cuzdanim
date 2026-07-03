@@ -37,7 +37,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '927025131625',
     projectId: 'deneme-app-935b6',
     storageBucket: 'deneme-app-935b6.firebasestorage.app',
-    iosBundleId: 'com.example.denemeApp',
+    iosBundleId: 'com.cuzdanim.app',
   );
 
   static FirebaseOptions get web => FirebaseOptions(

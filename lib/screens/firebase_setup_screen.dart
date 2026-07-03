@@ -83,20 +83,6 @@ class _WebSetup extends StatelessWidget {
                 style: TextStyle(color: Colors.grey.shade700, height: 1.5),
               ),
               const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'PowerShell:\n'
-                  'cd C:\\Users\\muham\\deneme_app\n'
-                  '.\\calistir.ps1',
-                  style: TextStyle(fontFamily: 'monospace', fontSize: 13),
-                ),
-              ),
-              const SizedBox(height: 20),
               Text(
                 l10n.firebaseDetail,
                 textAlign: TextAlign.center,

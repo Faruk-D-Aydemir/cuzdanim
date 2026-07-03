@@ -193,6 +193,7 @@ class _DashboardTab extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => SettingsScreen(
+                    auth: auth,
                     storage: storage,
                     onChanged: onRefresh,
                   ),

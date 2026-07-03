@@ -47,3 +47,9 @@ app.*.map.json
 # APK files (too large for GitHub)
 *.apk
 Cuzdanim.apk
+
+# Release signing — ASLA paylaşma veya commit'leme (kaybedersen Play Store'da
+# uygulamanı bir daha güncelleyemezsin; güvenli bir yere yedekle)
+/android/key.properties
+/android/*.jks
+/android/*.keystore

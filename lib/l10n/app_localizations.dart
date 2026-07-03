@@ -336,6 +336,31 @@ class AppLocalizations {
       ? 'Detay: proje klasöründeki BASLA.md'
       : 'Details: BASLA.md in the project folder';
 
+  String get accountSection => isTr ? 'Hesap' : 'Account';
+  String get legalSection => isTr ? 'Yasal' : 'Legal';
+  String get privacyPolicy => isTr ? 'Gizlilik Politikası' : 'Privacy Policy';
+  String get termsOfUse => isTr ? 'Kullanım Koşulları' : 'Terms of Use';
+  String get dangerZone => isTr ? 'Tehlikeli Bölge' : 'Danger Zone';
+  String get deleteAccount => isTr ? 'Hesabı Sil' : 'Delete Account';
+  String get deleteAccountHint => isTr
+      ? 'Hesabını ve tüm verilerini kalıcı olarak siler'
+      : 'Permanently deletes your account and all your data';
+  String get deleteAccountDialogTitle =>
+      isTr ? 'Hesabını silmek istiyor musun?' : 'Delete your account?';
+  String get deleteAccountDialogMessage => isTr
+      ? 'Bu işlem geri alınamaz. Tüm işlemlerin, kartların, çocuk profillerin ve hesap bilgilerin kalıcı olarak silinecek.'
+      : 'This cannot be undone. All your transactions, cards, child profiles, and account information will be permanently deleted.';
+  String get deleteAccountConfirmButton =>
+      isTr ? 'Evet, Devam Et' : 'Yes, Continue';
+  String get deleteAccountPinTitle =>
+      isTr ? 'Silmek için PIN\'ini gir' : 'Enter your PIN to delete';
+  String get deleteAccountPinSubtitle => isTr
+      ? 'Kimliğini doğrulamak için 4 haneli PIN\'ini gir'
+      : 'Enter your 4-digit PIN to confirm your identity';
+  String get deleteAccountSuccess =>
+      isTr ? 'Hesabın silindi.' : 'Your account has been deleted.';
+  String get appVersion => isTr ? 'Uygulama sürümü' : 'App version';
+
   String categoryMarket() => isTr ? 'Market' : 'Groceries';
   String categoryFood() => isTr ? 'Yemek' : 'Food';
   String categoryTransport() => isTr ? 'Ulaşım' : 'Transport';

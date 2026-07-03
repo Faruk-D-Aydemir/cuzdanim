@@ -7,19 +7,25 @@ import '../models/expense_category.dart';
 import '../models/recurring_transaction.dart';
 import '../models/transaction.dart';
 import '../services/app_settings.dart';
+import '../services/auth_service.dart';
 import '../services/finance_storage.dart';
 import '../services/notification_coordinator.dart';
 import '../utils/cloud_save.dart';
 import '../utils/formatters.dart';
 import '../widgets/finance_widgets.dart';
+import '../widgets/pin_pad.dart';
+import 'app_gate.dart';
+import 'legal_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
+    required this.auth,
     required this.storage,
     required this.onChanged,
   });
 
+  final AuthService auth;
   final FinanceStorage storage;
   final VoidCallback onChanged;
 
@@ -278,9 +284,164 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: const Icon(Icons.download),
             label: Text(l10n.exportCsv),
           ),
+          const Divider(height: 32),
+          Text(
+            l10n.legalSection,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip_outlined),
+                  title: Text(l10n.privacyPolicy),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const LegalScreen(document: LegalDocument.privacy),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.description_outlined),
+                  title: Text(l10n.termsOfUse),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const LegalScreen(document: LegalDocument.terms),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 32),
+          Text(
+            l10n.dangerZone,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.red.shade700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            color: Colors.red.shade50,
+            child: ListTile(
+              leading: Icon(Icons.delete_forever, color: Colors.red.shade700),
+              title: Text(
+                l10n.deleteAccount,
+                style: TextStyle(
+                  color: Colors.red.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(l10n.deleteAccountHint),
+              onTap: () => _confirmDeleteAccount(context),
+            ),
+          ),
           const SizedBox(height: 80),
         ],
       ),
+    );
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final l10n = context.l10n;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.deleteAccountDialogTitle),
+        content: Text(l10n.deleteAccountDialogMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.deleteAccountConfirmButton),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !context.mounted) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _DeleteAccountPinScreen(auth: widget.auth),
+      ),
+    );
+  }
+}
+
+class _DeleteAccountPinScreen extends StatefulWidget {
+  const _DeleteAccountPinScreen({required this.auth});
+
+  final AuthService auth;
+
+  @override
+  State<_DeleteAccountPinScreen> createState() =>
+      _DeleteAccountPinScreenState();
+}
+
+class _DeleteAccountPinScreenState extends State<_DeleteAccountPinScreen> {
+  String? _error;
+  int _resetKey = 0;
+  bool _loading = false;
+
+  Future<void> _onPin(String pin) async {
+    if (_loading) return;
+    setState(() => _loading = true);
+
+    final err = await widget.auth.deleteAccount(pin: pin);
+
+    if (!mounted) return;
+
+    if (err != null) {
+      setState(() {
+        _loading = false;
+        _error = err;
+        _resetKey++;
+      });
+      return;
+    }
+
+    final l10n = context.l10n;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.deleteAccountSuccess)),
+    );
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => AppGate(auth: widget.auth, storage: FinanceStorage()),
+      ),
+      (_) => false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.deleteAccount)),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : PinPad(
+              key: ValueKey(_resetKey),
+              title: l10n.deleteAccountPinTitle,
+              subtitle: l10n.deleteAccountPinSubtitle,
+              errorText: _error,
+              onCompleted: _onPin,
+            ),
     );
   }
 }

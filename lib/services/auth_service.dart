@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/child_profile.dart';
@@ -57,17 +54,6 @@ class AuthService {
     await _loadProfile(user.uid);
     if (currentUser != null) {
       await _loadChildren(user.uid);
-      final profileDoc = await _userDoc(user.uid).get();
-      final pinHash = profileDoc.data()?['pinHash'] as String?;
-      final email = profileDoc.data()?['email'] as String?;
-      if (pinHash != null && email != null) {
-        await _syncUsernameLoginFields(
-          username: currentUser!.username,
-          userId: user.uid,
-          email: email,
-          pinHash: pinHash,
-        );
-      }
     }
   }
 
@@ -83,11 +69,6 @@ class AuthService {
         'Kullanıcı adı kontrol edilemedi: ${e.message ?? e.code}',
       );
     }
-  }
-
-  static String hashPin(String pin) {
-    final bytes = utf8.encode('cuzdanim_$pin');
-    return sha256.convert(bytes).toString();
   }
 
   static String _firebasePasswordFromPin(String pin) => 'cz$pin!9';
@@ -118,9 +99,7 @@ class AuthService {
         email: trimmedEmail,
         password: _firebasePasswordFromPin(pin),
       );
-      final uid = cred.user!;
       final user = cred.user!;
-      final pinHash = hashPin(pin);
 
       final mailErr = await _sendVerificationEmail(user);
       if (mailErr != null) {
@@ -128,13 +107,12 @@ class AuthService {
       }
 
       await _createAccountDocuments(
-        userId: uid.uid,
+        userId: user.uid,
         username: trimmedUser,
         email: trimmedEmail,
-        pinHash: pinHash,
       );
 
-      await _loadProfile(uid.uid);
+      await _loadProfile(user.uid);
       role = SessionRole.parent;
       activeChild = null;
       return null;
@@ -167,26 +145,13 @@ class AuthService {
       if (!usernameDoc.exists) return 'Kullanıcı adı bulunamadı';
 
       final usernameData = usernameDoc.data()!;
-      final userId = usernameData['userId'] as String?;
-      if (userId == null) return 'Kullanıcı kaydı bozuk';
+      final email = usernameData['email'] as String?;
+      if (email == null || email.isEmpty) return 'Kullanıcı kaydı bozuk';
 
-      var email = usernameData['email'] as String?;
-      var pinHash = usernameData['pinHash'] as String?;
-
-      // Eski hesaplar: e-posta/PIN sadece users/{id} içinde
-      if (email == null || pinHash == null) {
-        final profileDoc = await _userDoc(userId).get();
-        if (!profileDoc.exists) return 'Kullanıcı profili bulunamadı';
-        final profile = profileDoc.data()!;
-        email = profile['email'] as String? ?? '';
-        pinHash = profile['pinHash'] as String?;
-      }
-
-      if (pinHash == null || pinHash != hashPin(pin)) {
-        return 'Yanlış PIN';
-      }
-      if (email.isEmpty) return 'E-posta bulunamadı';
-
+      // PIN doğrulaması artık istemci tarafında değil, doğrudan Firebase
+      // Authentication üzerinden yapılır. Bu sayede yanlış deneme sayısı
+      // sunucu tarafında hız sınırlamasına (rate limiting) tabidir ve PIN
+      // karşılığı hiçbir sır istemciye/veritabanına açık şekilde konmaz.
       await _auth.signInWithEmailAndPassword(
         email: email,
         password: _firebasePasswordFromPin(pin),
@@ -196,12 +161,6 @@ class AuthService {
       if (currentUser == null) {
         return 'Kullanıcı profili bulunamadı';
       }
-      await _syncUsernameLoginFields(
-        username: trimmedUser,
-        userId: _auth.currentUser!.uid,
-        email: email,
-        pinHash: pinHash,
-      );
       await _loadChildren(_auth.currentUser!.uid);
       role = SessionRole.parent;
       activeChild = null;
@@ -236,7 +195,7 @@ class AuthService {
     return ActionCodeSettings(
       url: 'https://deneme-app-935b6.firebaseapp.com',
       handleCodeInApp: true,
-      androidPackageName: 'com.example.deneme_app',
+      androidPackageName: 'com.cuzdanim.app',
       androidInstallApp: true,
       androidMinimumVersion: '21',
     );
@@ -286,28 +245,10 @@ class AuthService {
     return _children.where((c) => c.id == id).firstOrNull;
   }
 
-  Future<void> _syncUsernameLoginFields({
-    required String username,
-    required String userId,
-    required String email,
-    required String pinHash,
-  }) async {
-    try {
-      await _db.collection('usernames').doc(username.toLowerCase()).set({
-        'userId': userId,
-        'email': email,
-        'pinHash': pinHash,
-      }, SetOptions(merge: true));
-    } on FirebaseException {
-      // Giriş başarılı; senkron başarısız olsa da devam et
-    }
-  }
-
   Future<void> _createAccountDocuments({
     required String userId,
     required String username,
     required String email,
-    required String pinHash,
   }) async {
     final usernameRef = _db.collection('usernames').doc(username.toLowerCase());
     final userRef = _userDoc(userId);
@@ -321,17 +262,89 @@ class AuthService {
       tx.set(userRef, {
         'email': email,
         'username': username,
-        'pinHash': pinHash,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
       tx.set(usernameRef, {
         'userId': userId,
         'email': email,
-        'pinHash': pinHash,
         'createdAt': FieldValue.serverTimestamp(),
       });
     });
+  }
+
+  /// Hesabı ve tüm verilerini kalıcı olarak siler. Apple/Google mağaza
+  /// kurallarının gerektirdiği "hesap içi hesap silme" özelliği için gerekli.
+  ///
+  /// Güvenlik nedeniyle önce mevcut PIN ile yeniden kimlik doğrulaması
+  /// (reauthenticate) yapılır; Firebase, hassas işlemler için (hesap silme
+  /// gibi) yakın zamanda giriş yapılmış olmasını zorunlu kılar.
+  Future<String?> deleteAccount({required String pin}) async {
+    final user = _auth.currentUser;
+    final username = currentUser?.username;
+    if (user == null || username == null) {
+      return 'Oturum bulunamadı. Tekrar giriş yap.';
+    }
+    if (pin.length != 4 || !RegExp(r'^\d{4}$').hasMatch(pin)) {
+      return 'PIN 4 haneli olmalı';
+    }
+
+    try {
+      final email = user.email;
+      if (email == null) return 'E-posta bulunamadı';
+
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(
+          email: email,
+          password: _firebasePasswordFromPin(pin),
+        ),
+      );
+
+      final uid = user.uid;
+      await _deleteAllUserData(uid, username);
+      await user.delete();
+
+      currentUser = null;
+      _children = [];
+      role = SessionRole.parent;
+      activeChild = null;
+      return null;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        return 'Yanlış PIN';
+      }
+      return _authError(e);
+    } on FirebaseException catch (e) {
+      return 'Hesap silinemedi: ${e.message ?? e.code}';
+    }
+  }
+
+  Future<void> _deleteAllUserData(String uid, String username) async {
+    final userRef = _userDoc(uid);
+    const subcollections = ['transactions', 'cards', 'recurring', 'children', 'alerts'];
+
+    for (final name in subcollections) {
+      await _deleteCollection(userRef.collection(name));
+    }
+
+    await _db.collection('usernames').doc(username.toLowerCase()).delete();
+    await userRef.delete();
+  }
+
+  Future<void> _deleteCollection(
+    CollectionReference<Map<String, dynamic>> collection,
+  ) async {
+    const batchSize = 200;
+    while (true) {
+      final snap = await collection.limit(batchSize).get();
+      if (snap.docs.isEmpty) return;
+      final batch = _db.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      if (snap.docs.length < batchSize) return;
+    }
   }
 
   Future<void> _loadProfile(String uid) async {

@@ -107,8 +107,6 @@ class NotificationService {
         AndroidFlutterLocalNotificationsPlugin>();
     if (androidPlugin == null) return;
 
-    await androidPlugin.requestExactAlarmsPermission();
-
     for (final item in items) {
       await _scheduleRecurring(item);
     }

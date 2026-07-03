@@ -1,19 +1,30 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Giriş/kayıt öncesi kullanıcı adı kontrolü için okuma gerekli
+    // Kullanıcı adı -> e-posta eşlemesi: sadece giriş için gereken alanlara
+    // izin verilir. PIN hash'i ASLA burada tutulmaz/okunmaz (herkes
+    // tarafından okunabilen bir koleksiyonda parola karşılığı bir sır
+    // saklamak, PIN'in offline olarak anında kırılmasına yol açar).
     match /usernames/{username} {
       allow read: if true;
       allow create: if request.auth != null
-        && request.resource.data.userId == request.auth.uid;
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['userId', 'email', 'createdAt'])
+        && !('pinHash' in request.resource.data);
       allow update: if request.auth != null
+        && request.auth.uid == resource.data.userId
+        && request.resource.data.keys().hasOnly(['userId', 'email', 'createdAt'])
+        && !('pinHash' in request.resource.data);
+      allow delete: if request.auth != null
         && request.auth.uid == resource.data.userId;
-      allow delete: if false;
     }
 
+    // Kullanıcının kendi profili ve tüm alt koleksiyonları (transactions,
+    // cards, recurring, children, alerts): sadece sahibi okuyup yazabilir.
+    // Girişte artık Firestore'dan PIN doğrulaması yapılmıyor; PIN kontrolü
+    // doğrudan Firebase Authentication tarafından (signInWithEmailAndPassword)
+    // sunucu tarafında ve hız sınırlamalı şekilde yapılıyor.
     match /users/{userId} {
-      // Eski hesaplar: girişte e-posta/PIN profilden okunur (sadece tekil get)
-      allow get: if request.auth == null;
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
