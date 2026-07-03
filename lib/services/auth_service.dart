@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/child_profile.dart';
 import '../models/user_account.dart';
+import 'purchase_service.dart';
 
 class AuthServiceException implements Exception {
   AuthServiceException(this.message);
@@ -115,6 +116,7 @@ class AuthService {
       await _loadProfile(user.uid);
       role = SessionRole.parent;
       activeChild = null;
+      await PurchaseService.instance.identify(user.uid);
       return null;
     } on FirebaseAuthException catch (e) {
       return _authError(e);
@@ -164,6 +166,7 @@ class AuthService {
       await _loadChildren(_auth.currentUser!.uid);
       role = SessionRole.parent;
       activeChild = null;
+      await PurchaseService.instance.identify(_auth.currentUser!.uid);
       return null;
     } on FirebaseAuthException catch (e) {
       return _authError(e);
@@ -210,6 +213,7 @@ class AuthService {
 
   Future<void> logout() async {
     await _auth.signOut();
+    await PurchaseService.instance.reset();
     currentUser = null;
     _children = [];
     role = SessionRole.parent;
@@ -303,6 +307,7 @@ class AuthService {
       final uid = user.uid;
       await _deleteAllUserData(uid, username);
       await user.delete();
+      await PurchaseService.instance.reset();
 
       currentUser = null;
       _children = [];

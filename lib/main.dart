@@ -13,6 +13,7 @@ import 'services/app_settings.dart';
 import 'services/auth_service.dart';
 import 'services/finance_storage.dart';
 import 'services/notification_service.dart';
+import 'services/purchase_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/phone_shell.dart';
 
@@ -21,6 +22,7 @@ Future<void> main() async {
   await initializeDateFormatting('tr_TR');
   await initializeDateFormatting('en_US');
   await AppSettings.instance.load();
+  await PurchaseService.instance.init();
 
   if (DefaultFirebaseOptions.isConfigured) {
     await Firebase.initializeApp(
@@ -39,6 +41,10 @@ Future<void> main() async {
   final auth = AuthService();
   if (DefaultFirebaseOptions.isConfigured) {
     await auth.load();
+    final uid = auth.currentUserId;
+    if (uid != null) {
+      await PurchaseService.instance.identify(uid);
+    }
   }
 
   runApp(
