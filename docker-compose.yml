@@ -1,0 +1,17 @@
+services:
+  app:
+    build:
+      context: .
+    image: cuzdanim:latest
+    working_dir: /app
+    volumes:
+      - .:/app
+      - cuzdanim_pub_cache:/root/.pub-cache
+      - cuzdanim_dart_tool:/app/.dart_tool
+      - cuzdanim_build:/app/build
+    command: sh -c "flutter pub get && flutter analyze lib"
+
+volumes:
+  cuzdanim_pub_cache:
+  cuzdanim_dart_tool:
+  cuzdanim_build:
